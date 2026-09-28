@@ -355,14 +355,12 @@ def _print_table(headers: list[str], rows: list[list[str]]) -> None:
 
 
 def _setup_logging(verbose: bool, quiet: bool) -> None:
-    level = logging.DEBUG if verbose else logging.WARNING if quiet else logging.INFO
+    # Third-party libraries only speak up for warnings unless --verbose.
     logging.basicConfig(
-        level=level, format="%(levelname)s: %(message)s" if verbose else "%(message)s"
+        level=logging.DEBUG if verbose else logging.WARNING,
+        format="%(levelname)s %(name)s: %(message)s" if verbose else "%(message)s",
     )
-    if not verbose:
-        # Keep third-party chatter out of normal output.
-        for name in ("huggingface_hub", "kokoro_onnx", "phonemizer", "httpx", "urllib3"):
-            logging.getLogger(name).setLevel(logging.WARNING)
+    log.setLevel(logging.DEBUG if verbose else logging.WARNING if quiet else logging.INFO)
 
 
 if __name__ == "__main__":
