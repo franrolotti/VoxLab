@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Any
 
 from voxlab import __version__
@@ -126,7 +127,11 @@ def _total_ram_gb() -> float | None:
 
 
 def run_benchmark(
-    backend: TTSBackend, languages: list[str] | None = None, runs: int = 1
+    backend: TTSBackend,
+    languages: list[str] | None = None,
+    runs: int = 1,
+    reference_audio: Path | None = None,
+    reference_text: str | None = None,
 ) -> BenchmarkReport:
     """Load the backend, warm it up, then time each benchmark sentence."""
     languages = [
@@ -137,7 +142,15 @@ def run_benchmark(
     load_seconds = time.perf_counter() - started
 
     # Warm-up so one-off initialisation is not counted as synthesis time.
-    backend.synthesize(SynthesisRequest(text="OK.", language=languages[0]))
+    def request(text: str, language: str) -> SynthesisRequest:
+        return SynthesisRequest(
+            text=text,
+            language=language,
+            reference_audio=reference_audio,
+            reference_text=reference_text,
+        )
+
+    backend.synthesize(request("OK.", languages[0]))
 
     report = BenchmarkReport(
         system=system_info(), runtime=backend.runtime_info(), load_seconds=load_seconds
@@ -146,7 +159,7 @@ def run_benchmark(
         for text in BENCHMARK_SENTENCES.get(language, []):
             for _ in range(runs):
                 t0 = time.perf_counter()
-                result = backend.synthesize(SynthesisRequest(text=text, language=language))
+                result = backend.synthesize(request(text, language))
                 report.results.append(
                     SentenceResult(
                         language=language,

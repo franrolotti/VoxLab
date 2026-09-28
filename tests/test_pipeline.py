@@ -179,3 +179,27 @@ def test_each_character_speaks_its_own_language(config):
     dialogue = parse_dialogue("[ANA]\nhola\n[JOHN]\nhello\n[BOB]\nhola\n[ANA|lang=es-es]\nvale\n")
     jobs = make_pipeline(config).plan(dialogue, GenerateOptions(language="es")).jobs
     assert [j.request.language for j in jobs] == ["es-ar", "en", "es", "es-es"]
+
+
+def test_cloning_voices_are_routed_to_clone_backend(config):
+    _cloning_voice(config, with_speaker=False)
+    (config.voices_dir / "clone" / "ref.txt").write_text("hola, soy yo")
+    main, clone = FakeBackend(), CloningBackend()
+    pipeline = Pipeline(config, backend=main, clone_backend=clone)
+    jobs = pipeline.plan(parse_dialogue("[CLONE]\nhola\n[OPERATOR]\nchau\n")).jobs
+    assert [j.backend.name for j in jobs] == ["fake_clone", "fake"]
+    assert jobs[0].request.reference_text == "hola, soy yo"
+    assert jobs[1].request.reference_audio is None
+    pipeline.render(pipeline.plan(parse_dialogue("[CLONE]\nhola\n[OPERATOR]\nchau\n")), 48000)
+    assert main.loaded and clone.loaded
+    assert len(clone.requests) == 1 and len(main.requests) == 1
+
+
+def test_clone_backend_auto_resolution(config, monkeypatch):
+    from voxlab.tts import factory
+
+    assert factory.resolve_clone_backend_name("none") is None
+    monkeypatch.setattr("voxlab.tts.qwen.QwenBackend.is_installed", classmethod(lambda c: False))
+    assert factory.resolve_clone_backend_name("auto") is None
+    monkeypatch.setattr("voxlab.tts.qwen.QwenBackend.is_installed", classmethod(lambda c: True))
+    assert factory.resolve_clone_backend_name("auto") == "qwen"

@@ -12,8 +12,8 @@ def project(tmp_path, monkeypatch):
     monkeypatch.delenv("VOXLAB_CONFIG", raising=False)
     (tmp_path / "config.yaml").write_text(f"storage:\n  model_dir: {tmp_path / 'models'}\n")
     backend = FakeBackend()
-    monkeypatch.setattr("voxlab.pipeline.create_backend", lambda config: backend)
-    monkeypatch.setattr(cli, "create_backend", lambda config: backend)
+    monkeypatch.setattr("voxlab.pipeline.create_backend", lambda config, name=None: backend)
+    monkeypatch.setattr(cli, "create_backend", lambda config, name=None: backend)
     return tmp_path
 
 

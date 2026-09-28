@@ -6,6 +6,10 @@ The pipeline is split in two phases:
   line and validates everything *before* the model is loaded, so mistakes in a
   dialogue fail fast.
 * :meth:`Pipeline.render` runs the TTS backend and the audio chain.
+
+Voices with a reference clip are routed to the clone backend
+(``tts.clone_backend``) when the main backend cannot clone, so one dialogue can
+mix built-in and cloned voices.
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from voxlab.config import Config
 from voxlab.dialogue.models import Dialogue, DialogueLine
 from voxlab.errors import DialogueError, VoiceError
 from voxlab.tts.base import SynthesisRequest, TTSBackend
-from voxlab.tts.factory import create_backend
+from voxlab.tts.factory import create_backend, create_clone_backend
 from voxlab.voices.manager import VoiceManager, VoiceProfile
 
 log = logging.getLogger(__name__)
@@ -47,6 +51,7 @@ class LineJob:
     line: DialogueLine
     voice: VoiceProfile
     request: SynthesisRequest
+    backend: TTSBackend = field(compare=False, repr=False)
     pitch: float = 0.0
     volume_db: float = 0.0
     pause_ms: float | None = None
@@ -88,9 +93,12 @@ class Pipeline:
         backend: TTSBackend | None = None,
         voices: VoiceManager | None = None,
         presets: PresetLibrary | None = None,
+        clone_backend: TTSBackend | None = None,
     ) -> None:
         self.config = config
         self._backend = backend
+        self._clone_backend = clone_backend
+        self._clone_resolved = clone_backend is not None
         self.voices = voices or VoiceManager(config.voices_dir)
         self.presets = presets or PresetLibrary(config.preset_dirs)
 
@@ -99,6 +107,21 @@ class Pipeline:
         if self._backend is None:
             self._backend = create_backend(self.config)
         return self._backend
+
+    @property
+    def clone_backend(self) -> TTSBackend | None:
+        if not self._clone_resolved:
+            self._clone_backend = create_clone_backend(self.config)
+            self._clone_resolved = True
+        return self._clone_backend
+
+    def backend_for(self, voice: VoiceProfile) -> TTSBackend:
+        """Main backend, or the clone backend for reference voices it cannot handle."""
+        if voice.uses_cloning and not self.backend.capabilities.voice_cloning:
+            clone = self.clone_backend
+            if clone is not None:
+                return clone
+        return self.backend
 
     # --- planning -----------------------------------------------------------
 
@@ -128,7 +151,7 @@ class Pipeline:
         options: GenerateOptions,
         warned: set[str],
     ) -> LineJob:
-        backend = self.backend
+        backend = self.backend_for(voice)
         caps = backend.capabilities
         where = f"line {line.line_number} [{line.speaker}]"
         params: dict[str, Any] = {**voice.params, **line.params}
@@ -188,12 +211,15 @@ class Pipeline:
         )
         if voice.uses_cloning:
             request.reference_audio = self._reference_for(voice, request, backend, warned)
+            if request.reference_audio is not None:
+                request.reference_text = voice.reference_text
 
         return LineJob(
             index=index,
             line=line,
             voice=voice,
             request=request,
+            backend=backend,
             pitch=pitch,
             volume_db=post.get("volume", 0.0),
             pause_ms=post.get("pause"),
@@ -224,15 +250,17 @@ class Pipeline:
             return None
         raise VoiceError(
             f"Voice {voice.name!r} relies on voice cloning (reference audio), which backend "
-            f"{backend.name!r} does not support. Add a 'speaker' to voices/{voice.name}/voice.yaml "
-            "or use a backend with cloning support."
+            f"{backend.name!r} does not support and no cloning backend is installed. "
+            'Install one with: pip install "voxlab[clone]" (Apple Silicon), '
+            f"or add a 'speaker' to voices/{voice.name}/voice.yaml."
         )
 
     # --- rendering ----------------------------------------------------------
 
     def render(self, plan: Plan, sample_rate: int) -> np.ndarray:
         """Synthesize every line and return the processed mix at ``sample_rate``."""
-        self.backend.load()
+        for backend in {id(job.backend): job.backend for job in plan.jobs}.values():
+            backend.load()
         segments: list[Segment] = []
         total = len(plan.jobs)
         for job in plan.jobs:
@@ -256,7 +284,7 @@ class Pipeline:
         return plan.preset.apply(mix, sample_rate)
 
     def _render_line(self, job: LineJob, plan: Plan, sample_rate: int) -> np.ndarray:
-        result = self.backend.synthesize(job.request)
+        result = job.backend.synthesize(job.request)
         audio = trim_silence(result.audio, result.sample_rate)
         if job.pitch:
             audio = shift_pitch(audio, result.sample_rate, job.pitch)

@@ -23,6 +23,7 @@ from voxlab.tts.factory import (
     create_backend,
     get_backend_class,
     resolve_backend_name,
+    resolve_clone_backend_name,
 )
 from voxlab.voices.manager import VoiceManager
 
@@ -97,6 +98,10 @@ def build_parser() -> argparse.ArgumentParser:
     add = voices_sub.add_parser("add", help="create a voice profile in the voices folder")
     add.add_argument("name", help="voice name (lowercase, e.g. captain)")
     add.add_argument("--reference", type=Path, help="reference clip for voice cloning")
+    add.add_argument(
+        "--reference-text",
+        help="exact transcript of the reference clip (text, or a path to a .txt file)",
+    )
     add.add_argument("--speaker", help="backend speaker id or blend, e.g. em_alex:0.7,am_adam:0.3")
     add.add_argument("--language", help="default language of the voice")
     add.add_argument("--description", default="", help="short description")
@@ -112,6 +117,7 @@ def build_parser() -> argparse.ArgumentParser:
         description="Show TTS backends, model files and disk usage.",
     )
     models.add_argument("--download", action="store_true", help="download the configured model")
+    models.add_argument("--backend", help="backend to download (default: tts.backend)")
     models.set_defaults(handler=cmd_models)
 
     bench = sub.add_parser(
@@ -122,6 +128,8 @@ def build_parser() -> argparse.ArgumentParser:
     bench.add_argument("--language", nargs="+", help="languages to test (default: es en)")
     bench.add_argument("--runs", type=int, default=1, help="repetitions per sentence")
     bench.add_argument("--json", type=Path, help="also write the report as JSON")
+    bench.add_argument("--backend", help="backend to benchmark (default: tts.backend)")
+    bench.add_argument("--voice", help="voice to use (required for cloning-only backends)")
     bench.set_defaults(handler=cmd_benchmark)
 
     clean = sub.add_parser(
@@ -153,14 +161,15 @@ def cmd_generate(args: argparse.Namespace, config: Config) -> int:
     if args.dry_run:
         plan = pipeline.plan(dialogue, options)
         _print_table(
-            ["#", "speaker", "voice", "lang", "speaker id", "text"],
+            ["#", "speaker", "voice", "lang", "backend", "speaker id", "text"],
             [
                 [
                     str(j.index + 1),
                     j.line.speaker,
                     j.voice.name,
                     j.request.language,
-                    j.request.speaker or "(default)",
+                    j.backend.name,
+                    "(clone)" if j.request.reference_audio else j.request.speaker or "(default)",
                     _shorten(j.line.text, 40),
                 ]
                 for j in plan.jobs
@@ -210,9 +219,13 @@ def cmd_voices(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_voices_add(args: argparse.Namespace, config: Config) -> int:
     manager = VoiceManager(config.voices_dir)
+    reference_text = args.reference_text
+    if reference_text and Path(reference_text).is_file():
+        reference_text = Path(reference_text).read_text(encoding="utf-8")
     voice = manager.add(
         args.name,
         reference=args.reference,
+        reference_text=reference_text,
         speaker=args.speaker,
         language=args.language,
         description=args.description,
@@ -221,11 +234,18 @@ def cmd_voices_add(args: argparse.Namespace, config: Config) -> int:
     print(f"✔ Created voice {voice.name!r} in {config.voices_dir / voice.name}")
     if voice.uses_cloning:
         backend_cls = get_backend_class(resolve_backend_name(config.tts.backend))
-        if not backend_cls.capabilities.voice_cloning:
+        clone = resolve_clone_backend_name(config.tts.clone_backend)
+        if backend_cls.capabilities.voice_cloning:
+            print(f"  cloned by: {backend_cls.name}")
+        elif clone:
+            print(f"  cloned by: {clone}")
+        else:
             print(
-                f"  note: backend {backend_cls.name!r} cannot clone voices; "
-                "the reference clip will be used by backends that can."
+                '  note: no cloning backend installed. pip install "voxlab[clone]" (Apple Silicon)'
             )
+        if not voice.reference_text:
+            transcript = config.voices_dir / voice.name / "reference.txt"
+            print(f"  tip: save the exact transcript as {transcript} for better cloning")
     return 0
 
 
@@ -240,42 +260,82 @@ def cmd_presets(args: argparse.Namespace, config: Config) -> int:
 
 
 def cmd_models(args: argparse.Namespace, config: Config) -> int:
-    backend = create_backend(config)
+    main = resolve_backend_name(config.tts.backend)
+    clone = resolve_clone_backend_name(config.tts.clone_backend)
     if args.download:
-        backend.download()
+        create_backend(config, args.backend or main).download()
     rows = []
+    missing = []
     for name in backend_names():
         cls = get_backend_class(name)
-        active = name == backend.name
-        info = backend.model_info() if active else None
-        status = ("downloaded" if backend.is_downloaded() else "not downloaded") if active else "-"
+        role = "main" if name == main else "clone" if name == clone else ""
+        if not cls.is_installed():
+            rows.append(
+                [
+                    name,
+                    "-",
+                    "-",
+                    "-",
+                    "-",
+                    _yes(cls.capabilities.voice_cloning),
+                    "not installed",
+                    role,
+                ]
+            )
+            continue
+        backend = create_backend(config, name)
+        info = backend.model_info()
+        downloaded = backend.is_downloaded()
+        if role and not downloaded:
+            missing.append(name)
         rows.append(
             [
-                name + (" *" if active else ""),
-                info.model_id if info else "-",
-                info.variant if info else "-",
-                info.license if info else "-",
-                f"~{info.download_mb} MB" if info else "-",
-                "yes" if cls.capabilities.voice_cloning else "no",
-                status,
+                name,
+                info.model_id,
+                info.license,
+                f"~{info.download_mb} MB",
+                info.variant,
+                _yes(cls.capabilities.voice_cloning),
+                "downloaded" if downloaded else "not downloaded",
+                role,
             ]
         )
-    _print_table(["backend", "model", "variant", "license", "size", "cloning", "status"], rows)
+    _print_table(
+        ["backend", "model", "license", "size", "variant", "cloning", "status", "role"], rows
+    )
     print(f"\nModel directory: {config.model_dir} ({human_size(dir_size(config.model_dir))})")
-    if not backend.is_downloaded():
-        print("Download with: voxlab models --download")
+    for name in missing:
+        print(f"Download with: voxlab models --download --backend {name}")
     return 0
+
+
+def _yes(flag: bool) -> str:
+    return "yes" if flag else "no"
 
 
 def cmd_benchmark(args: argparse.Namespace, config: Config) -> int:
     from voxlab.benchmark import run_benchmark
 
-    backend = create_backend(config)
+    backend = create_backend(config, args.backend)
     if not backend.is_downloaded():
         print("The model is not downloaded; benchmark only uses installed models.")
-        print("Download with: voxlab models --download")
+        print(f"Download with: voxlab models --download --backend {backend.name}")
         return 1
-    report = run_benchmark(backend, languages=args.language, runs=max(1, args.runs))
+    voice = VoiceManager(config.voices_dir).get(args.voice) if args.voice else None
+    if (
+        backend.capabilities.voice_cloning
+        and not backend.speakers()
+        and not (voice and voice.uses_cloning)
+    ):
+        print(f"Backend {backend.name!r} only clones voices: pass --voice <voice with reference>")
+        return 1
+    report = run_benchmark(
+        backend,
+        languages=args.language,
+        runs=max(1, args.runs),
+        reference_audio=voice.reference if voice else None,
+        reference_text=voice.reference_text if voice else None,
+    )
     system = report.system
     print(
         f"System : {system['cpu']} ({system['cpu_count']} threads), "

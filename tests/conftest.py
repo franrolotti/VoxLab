@@ -74,6 +74,7 @@ def fake_backend() -> FakeBackend:
 def config(tmp_path: Path) -> Config:
     cfg = config_from_dict(
         {
+            "tts": {"clone_backend": "none"},  # independent of installed extras
             "voice": {"dir": "voices"},
             "output": {"dir": "output"},
             "storage": {"model_dir": "models"},
