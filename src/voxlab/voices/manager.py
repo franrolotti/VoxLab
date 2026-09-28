@@ -26,7 +26,16 @@ BUILTIN_FILE = Path(__file__).with_name("builtin.yaml")
 PROFILE_FILENAME = "voice.yaml"
 REFERENCE_SUFFIXES = (".wav", ".flac", ".mp3", ".ogg")
 VOICE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_\-]*$")
-_PROFILE_KEYS = {"name", "description", "speaker", "reference", "language", "params", "preset"}
+_PROFILE_KEYS = {
+    "name",
+    "description",
+    "speaker",
+    "reference",
+    "reference_text",
+    "language",
+    "params",
+    "preset",
+}
 
 SpeakerSpec = str | Mapping[str, Any] | None
 
@@ -37,6 +46,8 @@ class VoiceProfile:
     description: str = ""
     speaker: SpeakerSpec = None
     reference: Path | None = None
+    # Transcript of the reference clip; improves cloning on backends that use it.
+    reference_text: str | None = None
     language: str | None = None
     params: dict[str, Any] = field(default_factory=dict)
     preset: str | None = None
@@ -55,6 +66,16 @@ class VoiceProfile:
             language = language.lower()
             spec = spec.get(language) or spec.get(language.split("-")[0])
         return str(spec) if spec else None
+
+
+def read_transcript(reference: Path) -> str | None:
+    """Transcript stored next to a reference clip (``clip.txt`` or ``reference.txt``)."""
+    for candidate in (reference.with_suffix(".txt"), reference.parent / "reference.txt"):
+        if candidate.is_file():
+            text = candidate.read_text(encoding="utf-8").strip()
+            if text:
+                return text
+    return None
 
 
 def validate_voice_name(name: str) -> str:
@@ -87,11 +108,16 @@ def parse_profile(data: Any, name: str, source: str, base_dir: Path | None = Non
         if not reference.is_file():
             raise VoiceError(f"Voice {name!r}: reference audio not found: {reference}")
 
+    reference_text = data.get("reference_text")
+    if reference is not None and not reference_text:
+        reference_text = read_transcript(reference)
+
     return VoiceProfile(
         name=name,
         description=str(data.get("description", "")),
         speaker=speaker,
         reference=reference,
+        reference_text=str(reference_text).strip() if reference_text else None,
         language=str(data["language"]).lower() if data.get("language") else None,
         params=dict(params),
         preset=str(data["preset"]) if data.get("preset") else None,
@@ -133,7 +159,12 @@ class VoiceManager:
         # A folder with just a reference clip is a valid cloning voice.
         clips = [p for p in sorted(directory.iterdir()) if p.suffix.lower() in REFERENCE_SUFFIXES]
         if clips:
-            return VoiceProfile(name=name, reference=clips[0], source="user")
+            return VoiceProfile(
+                name=name,
+                reference=clips[0],
+                reference_text=read_transcript(clips[0]),
+                source="user",
+            )
         log.debug("Ignoring %s: no %s or reference audio", directory, PROFILE_FILENAME)
         return None
 
@@ -202,6 +233,7 @@ class VoiceManager:
         name: str,
         reference: Path | None = None,
         speaker: str | None = None,
+        reference_text: str | None = None,
         language: str | None = None,
         description: str = "",
         overwrite: bool = False,
@@ -229,6 +261,8 @@ class VoiceManager:
             copied = target / f"reference{reference.suffix.lower()}"
             shutil.copyfile(reference, copied)
             data["reference"] = copied.name
+            if reference_text:
+                (target / "reference.txt").write_text(reference_text.strip() + "\n", "utf-8")
         if speaker:
             data["speaker"] = speaker
         if language:

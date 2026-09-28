@@ -131,3 +131,21 @@ def test_cast_entry_can_set_character_language(manager):
     assert (cast["OPERATOR"].name, cast["OPERATOR"].language) == ("operator", "en")
     assert cast["GUEST"].language is None
     assert manager.get("male").language is None  # the shared profile is untouched
+
+
+def test_reference_transcript_is_loaded(tmp_path):
+    folder = tmp_path / "voices" / "fran"
+    folder.mkdir(parents=True)
+    (folder / "reference.wav").write_bytes(b"RIFF")
+    (folder / "reference.txt").write_text("  Che, ¿vos te acordás?\n")
+    assert VoiceManager(tmp_path / "voices").get("fran").reference_text == "Che, ¿vos te acordás?"
+    (folder / "voice.yaml").write_text("reference: reference.wav\nreference_text: Otro texto\n")
+    assert VoiceManager(tmp_path / "voices").get("fran").reference_text == "Otro texto"
+
+
+def test_add_voice_saves_transcript(tmp_path):
+    clip = tmp_path / "clip.wav"
+    clip.write_bytes(b"RIFF")
+    voice = VoiceManager(tmp_path / "voices").add("fran", reference=clip, reference_text="Hola")
+    assert voice.reference_text == "Hola"
+    assert (tmp_path / "voices" / "fran" / "reference.txt").read_text() == "Hola\n"
