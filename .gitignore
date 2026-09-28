@@ -1,0 +1,39 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.cache/
+
+# Models and weights (never commit these)
+models/
+model/
+checkpoints/
+weights/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+*.onnx
+
+# Generated audio and user voices (keep the folders)
+output/*
+!output/.gitkeep
+voices/*
+!voices/.gitkeep
+
+# Benchmark results
+benchmarks/results/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/
