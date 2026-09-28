@@ -1,0 +1,42 @@
+# Built-in voice profiles. User profiles in voices/<name>/voice.yaml with the
+# same name take precedence.
+#
+# `speaker` is backend-specific: a plain id, or a mapping
+# {backend: id} / {backend: {language: id}}. Languages without an entry use the
+# backend's default speaker for that language.
+
+default:
+  description: Backend default voice for the line's language.
+
+narrator:
+  description: Calm, slightly slower narration voice.
+  speaker:
+    kokoro: {es: em_alex, en: bm_george}
+  params: {speed: 0.95, pitch: -1}
+
+operator:
+  description: Human operator / pilot. Neutral male voice.
+  speaker:
+    kokoro: {es: em_alex, en: am_michael}
+
+computer:
+  description: Ship computer. Flat, lowered female voice; pairs well with retro presets.
+  speaker:
+    kokoro: {es: ef_dora, en: af_nicole}
+  params: {speed: 0.92, pitch: -3}
+
+female:
+  description: Neutral female voice.
+  speaker:
+    kokoro: {es: ef_dora, en: af_heart}
+
+male:
+  description: Neutral male voice.
+  speaker:
+    kokoro: {es: em_alex, en: am_adam}
+
+deep:
+  description: Deep, heavy male voice.
+  speaker:
+    kokoro: {es: em_santa, en: am_onyx}
+  params: {pitch: -2, speed: 0.95}
