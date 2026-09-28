@@ -1,0 +1,21 @@
+# VoxLab example dialogue.
+# Speakers map to voices by name (OPERATOR -> operator, COMPUTER -> computer).
+# Optional per-line parameters: speed, pitch (semitones), volume (dB), pause (ms), lang.
+
+[OPERATOR]
+¿Me recibes?
+
+[COMPUTER]
+AFIRMATIVO.
+
+[OPERATOR]
+¿Cuál es el estado del sistema?
+
+[COMPUTER]
+TODOS LOS SISTEMAS FUNCIONANDO.
+
+[OPERATOR|speed=0.95]
+Inicia protocolo.
+
+[COMPUTER|pause=600]
+PROTOCOLO INICIADO.
