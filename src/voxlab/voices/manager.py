@@ -207,14 +207,16 @@ class VoiceManager:
         if (target / PROFILE_FILENAME).exists() and not overwrite:
             raise VoiceError(f"Voice {name!r} already exists in {target} (use --force)")
 
-        data: dict[str, Any] = {"description": description} if description else {}
-        target.mkdir(parents=True, exist_ok=True)
         if reference is not None:
             reference = Path(reference)
             if not reference.is_file():
                 raise VoiceError(f"Reference audio not found: {reference}")
             if reference.suffix.lower() not in REFERENCE_SUFFIXES:
                 raise VoiceError(f"Reference must be one of {', '.join(REFERENCE_SUFFIXES)}")
+
+        data: dict[str, Any] = {"description": description} if description else {}
+        target.mkdir(parents=True, exist_ok=True)
+        if reference is not None:
             copied = target / f"reference{reference.suffix.lower()}"
             shutil.copyfile(reference, copied)
             data["reference"] = copied.name

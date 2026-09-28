@@ -96,6 +96,7 @@ def test_add_voice_errors(tmp_path, kwargs, message):
         kwargs["reference"] = tmp_path / kwargs["reference"]
     with pytest.raises(VoiceError, match=message):
         VoiceManager(tmp_path / "voices").add(**kwargs)
+    assert not (tmp_path / "voices" / kwargs["name"]).exists()
 
 
 def test_add_voice_rejects_non_audio(tmp_path):
