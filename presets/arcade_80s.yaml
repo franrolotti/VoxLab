@@ -1,0 +1,32 @@
+name: arcade_80s
+description: >
+  1980s arcade cabinet / home computer speech. 8-bit samples at a low sample
+  rate, narrow speaker band and a small cabinet reverb, tuned to stay intelligible.
+chain:
+  - effect: highpass
+    cutoff_hz: 180
+  - effect: peaking_eq       # presence boost before crushing keeps consonants clear
+    freq_hz: 2500
+    gain_db: 4
+    q: 0.8
+  - effect: compressor
+    threshold_db: -20
+    ratio: 4
+    attack_ms: 2
+    release_ms: 50
+    makeup_db: 3
+  - effect: bitcrush
+    bits: 8
+    downsample_hz: 11025
+  - effect: lowpass          # small cabinet speaker
+    cutoff_hz: 6500
+    order: 2
+  - effect: saturation
+    drive: 1.6
+    mix: 0.4
+  - effect: reverb
+    room_size: 0.15
+    damping: 0.6
+    mix: 0.08
+  - effect: normalize
+    peak_db: -1.0

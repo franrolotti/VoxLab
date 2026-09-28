@@ -1,0 +1,13 @@
+name: clean
+description: Natural voice with minimal processing (rumble filter, gentle leveling).
+chain:
+  - effect: highpass
+    cutoff_hz: 60
+    order: 2
+  - effect: compressor
+    threshold_db: -20
+    ratio: 1.8
+    attack_ms: 10
+    release_ms: 120
+  - effect: normalize
+    peak_db: -1.0

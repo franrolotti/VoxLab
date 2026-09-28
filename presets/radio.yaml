@@ -1,0 +1,23 @@
+name: radio
+description: Two-way radio / broadcast transmission. Telephone band, presence boost, light hiss.
+chain:
+  - effect: bandpass
+    low_hz: 300
+    high_hz: 3400
+  - effect: peaking_eq
+    freq_hz: 1800
+    gain_db: 4
+    q: 0.9
+  - effect: compressor
+    threshold_db: -22
+    ratio: 4
+    attack_ms: 3
+    release_ms: 60
+  - effect: saturation
+    drive: 1.8
+    mix: 0.5
+  - effect: noise
+    level_db: -46
+    color: pink
+  - effect: normalize
+    peak_db: -1.0

@@ -1,0 +1,29 @@
+name: crt_terminal
+description: Computer terminal voice through a CRT monitor speaker, with faint flyback whine.
+chain:
+  - effect: bandpass
+    low_hz: 220
+    high_hz: 5500
+  - effect: peaking_eq
+    freq_hz: 1200
+    gain_db: 3
+    q: 1.0
+  - effect: bitcrush
+    bits: 10
+    downsample_hz: 16000
+    mix: 0.6
+  - effect: compressor
+    threshold_db: -20
+    ratio: 3
+  - effect: reverb
+    room_size: 0.2
+    damping: 0.7
+    mix: 0.06
+  - effect: tone             # 15.734 kHz NTSC horizontal scan whine, very low
+    freq_hz: 15734
+    level_db: -58
+  - effect: noise
+    level_db: -56
+    color: white
+  - effect: normalize
+    peak_db: -1.0

@@ -1,0 +1,30 @@
+name: sci_fi
+description: Starship computer / android voice. Ring modulation, doubling and a large hall.
+chain:
+  - effect: highpass
+    cutoff_hz: 100
+  - effect: ring_mod
+    freq_hz: 50
+    mix: 0.3
+  - effect: chorus
+    rate_hz: 0.4
+    depth_ms: 1.5
+    delay_ms: 20
+    mix: 0.35
+  - effect: peaking_eq
+    freq_hz: 2800
+    gain_db: 3
+    q: 1.0
+  - effect: compressor
+    threshold_db: -20
+    ratio: 3
+  - effect: delay
+    time_ms: 90
+    feedback: 0.2
+    mix: 0.1
+  - effect: reverb
+    room_size: 0.8
+    damping: 0.3
+    mix: 0.22
+  - effect: normalize
+    peak_db: -1.0

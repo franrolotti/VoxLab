@@ -1,0 +1,36 @@
+name: cyberpunk
+description: Augmented, slightly glitchy voice with grit, chorus and a neon-city space.
+chain:
+  - effect: highpass
+    cutoff_hz: 120
+  - effect: peaking_eq
+    freq_hz: 3000
+    gain_db: 4
+    q: 1.0
+  - effect: saturation
+    drive: 3.0
+    mix: 0.35
+  - effect: bitcrush
+    bits: 10
+    mix: 0.25
+  - effect: chorus
+    rate_hz: 1.5
+    depth_ms: 2.5
+    delay_ms: 12
+    mix: 0.3
+  - effect: compressor
+    threshold_db: -22
+    ratio: 5
+    attack_ms: 2
+    release_ms: 60
+    makeup_db: 2
+  - effect: delay
+    time_ms: 180
+    feedback: 0.25
+    mix: 0.12
+  - effect: reverb
+    room_size: 0.6
+    damping: 0.4
+    mix: 0.12
+  - effect: normalize
+    peak_db: -1.0
