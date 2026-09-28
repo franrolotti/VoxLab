@@ -1,0 +1,39 @@
+# VoxLab configuration. Every key is optional; omitted keys use the defaults
+# shown here. Relative paths are resolved against this file's directory.
+
+tts:
+  backend: auto          # auto | kokoro
+  device: auto           # auto | cpu | cuda | coreml (availability depends on the backend)
+  language: es           # default language for lines that don't set one (ISO 639-1)
+  options: {}            # backend-specific options, e.g. for Kokoro: {variant: q8f16}
+
+audio:
+  sample_rate: 48000     # 44100 | 48000 (also 22050, 24000)
+  bit_depth: 24          # 16 | 24
+  format: wav
+  gap_ms: 350            # silence between dialogue lines
+  padding_ms: 250        # silence at the start and end of the file
+
+voice:
+  default: default       # voice used for speakers without an assignment
+  dir: voices            # user voice profiles (voices/<name>/voice.yaml)
+  strict: false          # true: unknown speakers are an error instead of using the default
+
+# Speaker (as written in the dialogue) -> voice. Speakers whose lowercase name
+# matches a voice (OPERATOR -> operator) are assigned automatically.
+cast:
+  NARRADOR: narrator
+
+preset:
+  default: clean
+  dirs: [presets]        # extra folders searched for <name>.yaml presets
+
+storage:
+  model_dir: ~/.cache/voxlab   # downloaded models live here, never in the repo
+  auto_download: true          # download the model on first use
+
+privacy:
+  offline: true          # once the model is cached, never contact the network
+
+output:
+  dir: output
