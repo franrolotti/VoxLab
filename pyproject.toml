@@ -1,0 +1,58 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "voxlab"
+version = "0.1.0"
+description = "Local-first AI voice lab: multi-character dialogues, voice profiles and audio style presets."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Francisco Rolotti" }]
+requires-python = ">=3.10,<3.14"
+keywords = ["tts", "text-to-speech", "voice-cloning", "audio", "dialogue", "offline"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Environment :: Console",
+]
+dependencies = [
+    # Default (and only) TTS backend for v0.1: Kokoro-82M via ONNX Runtime.
+    # See MODEL_SELECTION.md.
+    "kokoro-onnx>=0.6,<0.7",
+    "huggingface-hub>=0.23",
+    "numpy>=1.24",
+    "PyYAML>=6.0",
+    "scipy>=1.10",
+    "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.6"]
+
+[project.scripts]
+voxlab = "voxlab.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/franrolotti/VoxLab"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/voxlab"]
+
+# Ship the built-in presets inside the wheel so `pip install` users get them.
+[tool.hatch.build.targets.wheel.force-include]
+"presets" = "voxlab/_presets"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "RUF", "N"]
+ignore = ["RUF001", "RUF002", "RUF003"]  # Spanish text uses ¿ ¡ and accented chars
