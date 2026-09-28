@@ -24,6 +24,10 @@ weights/
 *.ckpt
 *.onnx
 
+# Personal dialogues: only the bundled example is published
+examples/*
+!examples/dialogue.txt
+
 # Generated audio and user voices (keep the folders)
 output/*
 !output/.gitkeep
