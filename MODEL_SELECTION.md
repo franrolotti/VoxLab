@@ -177,3 +177,43 @@ selected in `config.yaml` at a small quality cost.
 - Overviews: <https://www.bentoml.com/blog/exploring-the-world-of-open-source-text-to-speech-models>,
   <https://localclaw.io/blog/local-tts-guide-2026>,
   <https://modal.com/blog/open-source-tts>
+
+## Addendum: voice cloning backend (v0.1.x)
+
+Users asked for voices with a real regional accent (Rioplatense Spanish).
+Kokoro's `es-ar` option fixes consonants (*sheísmo*) but not intonation, which
+needs cloning. Fine-tuning Kokoro was rejected: community recipes exist
+([German](https://github.com/semidark/kikiri-tts),
+[Polish](https://github.com/gicaking/kokoro-pl)) but need hours of
+transcribed audio and an NVIDIA GPU.
+
+**Selected: Qwen3-TTS 12Hz 0.6B Base** (Apache-2.0), run through
+[mlx-audio](https://github.com/Blaizzy/mlx-audio) (MIT) with the
+[`mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16`](https://huggingface.co/mlx-community/Qwen3-TTS-12Hz-0.6B-Base-bf16)
+weights, as an **optional** extra. Kokoro stays the default backend; voices
+with a reference clip are routed to Qwen.
+
+Measured on an Apple M4 (16 GB) with a 25 s Rioplatense reference recording
+and its transcript, same Whisper-based check as above:
+
+| Runtime | Lines correct | RTF | Notes |
+|---|---|---|---|
+| qwen-tts, PyTorch CPU fp32 | 6/6 | 3.95 | +1.1 GB (PyTorch) |
+| qwen-tts, PyTorch MPS fp16 | — | — | NaN during sampling |
+| qwen-tts, PyTorch MPS fp32 / bf16 | 6/6 | 3.15 / 3.02 | GPU barely helps: per-token overhead dominates |
+| **mlx-audio, MLX GPU bf16** | **6/6** | **2.0** (1.2 on long lines) | no PyTorch, +260 MB packages |
+| VoxLab end-to-end, 19-line reel | 19/19 | 1.07 | cloned + Kokoro voices mixed |
+
+The accent transfers: Whisper transcribed *llovió* as "sovió" and *llena* as
+"china" — it was hearing the Rioplatense /ʃ/ from the reference.
+
+Not chosen:
+- **F5-Spanish** (trained on Spanish including Argentine speech) — derived
+  from F5-TTS, whose base weights are CC-BY-NC; licence status unclear.
+- **Chatterbox Multilingual** — hallucinated words on short lines (see above).
+- **Qwen3-TTS 1.7B** — better quality reported, but ~4.5 GB would break the
+  storage budget.
+
+Storage with cloning: ~0.6 GB (base) + ~0.26 GB (packages) + ~2.4 GB (model)
+≈ **3.3 GB**, within the 5 GB budget.
+

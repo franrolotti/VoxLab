@@ -83,7 +83,8 @@ It is deliberately not a giant wrapper around every TTS model.
 - 🔒 100 % local inference once the model is downloaded; no cloud APIs
 - ⚡ ~4× faster than real time on a laptop CPU, no GPU needed
 - 📦 ~0.6 GB total footprint, no PyTorch
-- 🧩 Pluggable TTS backends (voice cloning ready at the interface level)
+- 🧬 Optional **voice cloning** from a 10–30 s recording (Qwen3-TTS on the Apple Silicon GPU), mixed freely with built-in voices
+- 🧩 Pluggable TTS backends
 
 ## Architecture
 
@@ -103,8 +104,9 @@ src/voxlab/
 ├── voices/           # voice profiles, casting, built-in voices
 ├── tts/
 │   ├── base.py       # TTSBackend interface + capabilities
-│   ├── factory.py    # backend registry (`tts.backend: auto`)
-│   └── kokoro.py     # Kokoro-82M on ONNX Runtime
+│   ├── factory.py    # backend registry (`tts.backend`, `tts.clone_backend`)
+│   ├── kokoro.py     # Kokoro-82M on ONNX Runtime (default)
+│   └── qwen.py       # Qwen3-TTS 0.6B on MLX (optional, voice cloning)
 └── audio/
     ├── effects.py    # effect functions (filters, compressor, bitcrush, reverb…)
     ├── presets.py    # YAML presets → effect chains
@@ -115,8 +117,9 @@ src/voxlab/
 The pipeline talks only to the abstract `TTSBackend`. Each backend declares its
 **capabilities** — languages, voice cloning, parameters it handles natively —
 and VoxLab adapts: unsupported parameters are emulated in post-processing
-(`pitch`, `volume`, `pause`) or ignored with a warning; cloning voices are
-rejected clearly on backends that cannot clone.
+(`pitch`, `volume`, `pause`) or ignored with a warning. Voices with a
+reference clip are routed to the clone backend when the main one cannot clone,
+so a single dialogue can mix built-in and cloned voices.
 
 **Adding a backend** (e.g. Chatterbox, F5-TTS, XTTS, CosyVoice) means writing
 one `TTSBackend` subclass and one registry entry in `tts/factory.py`. Dialogue,
@@ -143,6 +146,12 @@ uv venv -p 3.12 && uv pip install -e .
 ```
 
 For development: `pip install -e ".[dev]"`, then `pytest` and `ruff check .`.
+
+Voice cloning (Apple Silicon Macs, adds ~2.4 GB model + ~260 MB of packages):
+
+```bash
+pip install -e ".[clone]"
+```
 
 ## Downloading the model
 
@@ -299,21 +308,52 @@ computers, use ±1–3 semitones for human characters.
 
 ## Voice cloning
 
-The voice system supports **reference audio**:
+Clone a voice from a short recording and use it like any other voice. Cloning
+runs **Qwen3-TTS 0.6B** (Apache-2.0) on the Mac GPU through
+[MLX](https://github.com/ml-explore/mlx); it copies timbre *and accent*
+(a Rioplatense recording gives Rioplatense speech, *sheísmo* included).
+
+**1. Install the extra** (Apple Silicon only for now):
 
 ```bash
-voxlab voices add captain --reference my_recording.wav
+pip install -e ".[clone]"
+voxlab models --download --backend qwen     # ~2.4 GB, once
 ```
 
-This copies the clip to `voices/captain/` (git-ignored). Backends advertise
-whether they can clone; **Kokoro, the v0.1 backend, cannot**. With Kokoro, a
-voice that only has a reference clip fails with a clear message, and a voice
-with both a reference and a `speaker` uses the speaker (with a warning).
+**2. Record 10–30 s** of natural speech in a quiet room (QuickTime → New Audio
+Recording works). Convert to WAV:
 
-Why ship without cloning? The cloning models tested for v0.1 hallucinated extra
-words on short dialogue lines and were ~20× slower on CPU; details in
-[`MODEL_SELECTION.md`](MODEL_SELECTION.md). An optional cloning backend is the
-first item on the roadmap. Only clone voices you have permission to use.
+```bash
+afconvert -f WAVE -d LEI16@24000 recording.m4a recording.wav
+```
+
+**3. Create the voice with the exact transcript** of what you said:
+
+```bash
+voxlab voices add fran --reference recording.wav --language es-ar \
+  --reference-text "Che, ¿vos te acordás de la calle donde vivía mi abuela? ..."
+```
+
+This creates `voices/fran/` (git-ignored) with `reference.wav`,
+`reference.txt` and `voice.yaml`. The transcript is optional but makes cloning
+noticeably more accurate.
+
+**4. Use it.** A speaker named `FRAN` picks it up automatically, or map it in
+`cast:`. Cloned and built-in voices can share a dialogue: VoxLab sends cloned
+voices to Qwen3-TTS and the rest to Kokoro.
+
+```bash
+voxlab generate examples/dialogue.txt --voice OPERATOR=fran --dry-run   # BACKEND column shows qwen
+voxlab generate examples/dialogue.txt --voice OPERATOR=fran
+```
+
+Speed on an Apple M4: ~1.2× real time for long lines, ~2.5 s per short line
+(RTF 1.7 overall) — slower than Kokoro, but fine for scripts. Shorter
+references (8–12 s) are faster, since the clip is part of every prompt.
+`speed` is not supported by this backend (ignored with a warning); `pitch`,
+`volume` and `pause` work. Set `tts.clone_backend: none` to disable routing.
+
+Only clone voices you have permission to use.
 
 ## Presets
 
@@ -404,6 +444,7 @@ copy of the preset.
 | CPU | any 64-bit x86-64 / ARM64 CPU | RTF 0.27 (3.8× real time) |
 | RAM | 2 GB free | ~0.9 GB peak |
 | GPU | not needed | not used |
+| Voice cloning | Apple Silicon Mac, 8 GB RAM | RTF 1.7 on the GPU, ~2.7 GB peak |
 
 An NVIDIA GPU can be used with `pip install onnxruntime-gpu` and
 `tts.device: cuda`, but Kokoro is fast enough on CPU that it is rarely worth
@@ -417,6 +458,9 @@ your machine.
 | VoxLab + Python dependencies (onnxruntime, numpy, scipy, …) | ~230 MB |
 | Kokoro-82M fp32 model + 54 voices (`~/.cache/voxlab`) | ~365 MB |
 | **Total** | **~0.6 GB** (budget: 5 GB) |
+| Optional: `[clone]` packages (MLX, mlx-audio, transformers) | ~260 MB |
+| Optional: Qwen3-TTS 0.6B bf16 model | ~2.4 GB |
+| **Total with cloning** | **~3.3 GB** |
 
 With `variant: q8f16` the model shrinks to ~115 MB (slower on CPU). Output WAVs are ~8.6 MB
 per minute at 48 kHz / 24-bit mono.
@@ -432,7 +476,8 @@ folder, the current directory or anything that looks like a project.
 
 ## Limitations
 
-- **No voice cloning in v0.1** (Kokoro cannot clone). See above.
+- **Voice cloning needs an Apple Silicon Mac** for now (MLX). A PyTorch
+  runtime for Linux/Windows is on the roadmap. Cloning has no speed control.
 - **Spanish voices:** three native speakers (`ef_dora`, `em_alex`,
   `em_santa`); blending and pitch give more variety. English has ~20 voices.
 - **Languages:** es (es-es, es-419, es-ar), en (US/UK), fr, it, pt-BR, hi. Japanese and Chinese
@@ -452,6 +497,8 @@ folder, the current directory or anything that looks like a project.
 | Kokoro-82M weights (and ONNX export) | Apache-2.0 | ✅ |
 | kokoro-onnx, onnxruntime | MIT | ✅ |
 | phonemizer, espeak-ng (phonemisation) | **GPL-3.0** | ✅ for use; see note |
+| Qwen3-TTS 0.6B Base weights (optional) | Apache-2.0 | ✅ |
+| mlx, mlx-audio (optional) | MIT | ✅ |
 
 Audio you generate is yours to use, including commercially. The GPL-3.0
 components only matter if you **redistribute VoxLab bundled** into a single
@@ -462,11 +509,11 @@ that were *not* chosen (several are non-commercial), in
 
 ## Roadmap
 
-**v0.1 (this release)** — text → dialogue → TTS → voices → audio FX → WAV.
+**v0.1 (this release)** — text → dialogue → TTS → voices → audio FX → WAV,
+plus optional voice cloning on Apple Silicon.
 
 **v0.2**
-- Optional voice-cloning backend (Chatterbox Multilingual), installed as an
-  extra: `pip install "voxlab[chatterbox]"`
+- Voice cloning on Linux/Windows (Qwen3-TTS on PyTorch/CUDA)
 - Batch generation (folders of dialogues, one WAV per line for game engines)
 - Loudness normalisation (LUFS) and stereo placement per character
 
