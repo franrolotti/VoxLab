@@ -76,7 +76,7 @@ It is deliberately not a giant wrapper around every TTS model.
 
 - 🗣️ Multi-character dialogues from plain text files
 - 🎭 50+ built-in voices, voice **blending** and custom voice profiles
-- 🌍 Spanish, English (US/UK), French, Italian, Portuguese and Hindi
+- 🌍 Spanish (Spain, Latin America, Río de la Plata), English (US/UK), French, Italian, Portuguese and Hindi
 - 🎛️ Six presets: `clean`, `radio`, `arcade_80s`, `crt_terminal`, `cyberpunk`, `sci_fi` — and your own
 - 🎚️ Per-line parameters: speed, pitch, volume, pause, language
 - 💾 WAV export, 48 kHz / 24-bit by default (44.1 kHz and 16-bit available)
@@ -218,7 +218,21 @@ Meanwhile, on the bridge...
 | `pitch` | -12–12 | VoxLab | semitones up/down |
 | `volume` | -30–12 | VoxLab | gain in dB |
 | `pause` | 0–10000 | VoxLab | silence after the line, in ms (default `audio.gap_ms`) |
-| `lang` | e.g. `es`, `en`, `en-gb` | model | language of the line |
+| `lang` | e.g. `es`, `es-ar`, `en`, `en-gb` | model | language/dialect of the line |
+
+### Spanish variants
+
+| Code | Variant | Pronunciation |
+|---|---|---|
+| `es` / `es-es` | Spain | *distinción* (`cielo` → /θ/), lateral `ll` |
+| `es-419` (`es-mx`) | Latin America | *seseo* (`cielo` → /s/), *yeísmo* |
+| `es-ar` (`es-uy`) | Río de la Plata | *seseo* + *sheísmo* (`calle`, `yo` → /ʃ/) |
+
+Set it per line (`[CRONISTA|lang=es-ar]`), per voice (`language: es-ar`), per
+run (`--language es-ar`) or globally (`tts.language: es-ar`). The variants
+change **pronunciation**; intonation still comes from the model's Spanish
+voices, so the rioplatense melody is only approximated. Write *voseo*
+directly in the text (`vos querés`).
 
 Parameters a backend does not support are ignored with a warning. A text file
 **without any header** is read as narration, one utterance per paragraph.
@@ -404,7 +418,7 @@ folder, the current directory or anything that looks like a project.
 - **No voice cloning in v0.1** (Kokoro cannot clone). See above.
 - **Spanish voices:** three native speakers (`ef_dora`, `em_alex`,
   `em_santa`); blending and pitch give more variety. English has ~20 voices.
-- **Languages:** es, en (US/UK), fr, it, pt-BR, hi. Japanese and Chinese
+- **Languages:** es (es-es, es-419, es-ar), en (US/UK), fr, it, pt-BR, hi. Japanese and Chinese
   voices exist in the model but need a different phonemiser; not supported yet.
 - **No emotion/style control**: Kokoro reads text neutrally. Punctuation
   (`!`, `?`, `…`) still shapes intonation.

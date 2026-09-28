@@ -43,11 +43,23 @@ LANGUAGES: dict[str, str] = {
     "en-us": "en-us",
     "en-gb": "en-gb",
     "es": "es",
+    "es-es": "es",  # Spain: distinción (c/z = /θ/), lateral ll
+    "es-419": "es-419",  # Latin America: seseo, yeísmo
+    "es-mx": "es-419",
+    "es-ar": "es-419",  # Río de la Plata: es-419 + sheísmo (see DIALECT_PHONEMES)
+    "es-uy": "es-419",
     "fr": "fr-fr",
     "it": "it",
     "pt": "pt-br",
     "pt-br": "pt-br",
     "hi": "hi",
+}
+
+# Phoneme substitutions applied after espeak-ng for dialects it lacks.
+DIALECT_PHONEMES: dict[str, tuple[tuple[str, str], ...]] = {
+    # Rioplatense sheísmo: "ll" and "y" are pronounced /ʃ/ (calle -> "cashe").
+    "es-ar": (("jj", "ʃ"), ("ʝ", "ʃ"), ("ʎ", "ʃ")),
+    "es-uy": (("jj", "ʃ"), ("ʝ", "ʃ"), ("ʎ", "ʃ")),
 }
 
 DEFAULT_SPEAKERS: dict[str, str] = {
@@ -243,12 +255,23 @@ class KokoroBackend(TTSBackend):
             raise BackendError(f"Kokoro speed must be between 0.5 and 2.0, got {speed:.2f}")
         espeak_lang = LANGUAGES.get(language) or LANGUAGES[language.split("-")[0]]
         try:
+            phonemes = self.phonemize(request.text, language)
             audio, sample_rate = self._engine.create(
-                request.text, voice=style, speed=speed, lang=espeak_lang
+                phonemes, voice=style, speed=speed, lang=espeak_lang, is_phonemes=True
             )
         except (ValueError, RuntimeError) as exc:
             raise BackendError(f"Kokoro failed on {request.text[:40]!r}: {exc}") from exc
         return SynthesisResult(np.asarray(audio, dtype=np.float32), int(sample_rate))
+
+    def phonemize(self, text: str, language: str) -> str:
+        """Text -> phonemes with espeak-ng, plus VoxLab's dialect adjustments."""
+        self.load()
+        language = language.lower()
+        espeak_lang = LANGUAGES.get(language) or LANGUAGES[language.split("-")[0]]
+        phonemes = self._engine.tokenizer.phonemize(text, espeak_lang)
+        for old, new in DIALECT_PHONEMES.get(language, ()):
+            phonemes = phonemes.replace(old, new)
+        return phonemes
 
     def _style(self, speaker: str | None) -> np.ndarray:
         """Resolve ``id`` or a blend ``id1:0.6,id2:0.4`` into a style tensor."""

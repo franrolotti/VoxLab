@@ -148,3 +148,16 @@ def test_clean_refuses_dangerous_paths(tmp_path, monkeypatch):
     (project / "pyproject.toml").write_text("")
     with pytest.raises(VoxLabError, match="project folder"):
         clean_model_dir(project)
+
+
+def test_kokoro_spanish_dialects(kokoro):
+    class FakeTokenizer:
+        def phonemize(self, text, lang):
+            return {"es": "ʎˈamo θeθˈilja", "es-419": "ʝˈamo sesˈilja kˈajje"}[lang]
+
+    kokoro._engine = type("Engine", (), {"tokenizer": FakeTokenizer()})()
+    assert kokoro.phonemize("x", "es-es") == "ʎˈamo θeθˈilja"
+    assert kokoro.phonemize("x", "es-419") == "ʝˈamo sesˈilja kˈajje"
+    assert kokoro.phonemize("x", "es-AR") == "ʃˈamo sesˈilja kˈaʃe"
+    assert kokoro.supports_language("es-ar")
+    assert kokoro.default_speaker("es-ar") == "ef_dora"

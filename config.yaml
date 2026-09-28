@@ -4,7 +4,7 @@
 tts:
   backend: auto          # auto | kokoro
   device: auto           # auto | cpu | cuda | coreml (availability depends on the backend)
-  language: es           # default language for lines that don't set one (ISO 639-1)
+  language: es           # default language: es | es-es | es-419 | es-ar | en | en-gb | fr | it | pt | hi
   options: {}            # backend-specific options, e.g. for Kokoro: {variant: q8f16}
 
 audio:
