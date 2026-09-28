@@ -29,6 +29,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Voice cloning with Qwen3-TTS 0.6B on the Apple Silicon GPU (MLX). ~2.4 GB model.
+clone = [
+    "mlx-audio>=0.5.7,<0.6; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]

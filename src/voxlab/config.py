@@ -24,6 +24,9 @@ CONFIG_ENV_VAR = "VOXLAB_CONFIG"
 @dataclass
 class TTSConfig:
     backend: str = "auto"
+    # Backend for voices with a reference clip when the main one cannot clone.
+    # auto = first installed cloning backend (e.g. qwen); none = disable.
+    clone_backend: str = "auto"
     device: str = "auto"
     language: str = "es"
     # Backend-specific options, passed through untouched (e.g. Kokoro model variant).

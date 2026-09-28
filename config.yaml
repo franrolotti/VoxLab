@@ -3,6 +3,7 @@
 
 tts:
   backend: auto          # auto | kokoro
+  clone_backend: auto    # backend for voices with a reference clip: auto | qwen | none
   device: auto           # auto | cpu | cuda | coreml (availability depends on the backend)
   language: es           # default language: es | es-es | es-419 | es-ar | en | en-gb | fr | it | pt | hi
   options: {}            # backend-specific options, e.g. for Kokoro: {variant: q8f16}

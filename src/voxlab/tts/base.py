@@ -51,6 +51,8 @@ class SynthesisRequest:
     speaker: str | None = None
     # Reference clip for voice cloning (only if capabilities.voice_cloning).
     reference_audio: Path | None = None
+    # Transcript of the reference clip, when known.
+    reference_text: str | None = None
     params: dict[str, Any] = field(default_factory=dict)
 
 

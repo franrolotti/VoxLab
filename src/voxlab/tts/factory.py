@@ -16,6 +16,7 @@ from voxlab.tts.base import TTSBackend
 
 _REGISTRY: dict[str, str | type[TTSBackend]] = {
     "kokoro": "voxlab.tts.kokoro:KokoroBackend",
+    "qwen": "voxlab.tts.qwen:QwenBackend",
 }
 
 # Preference order for ``tts.backend: auto``.
@@ -55,6 +56,24 @@ def resolve_backend_name(requested: str) -> str:
         if get_backend_class(name).is_installed():
             return name
     raise BackendError("No TTS backend is installed. Reinstall VoxLab: pip install voxlab")
+
+
+def resolve_clone_backend_name(requested: str) -> str | None:
+    """Backend used for voices with a reference clip (``tts.clone_backend``)."""
+    if requested == "none":
+        return None
+    if requested != "auto":
+        return requested
+    for name in _REGISTRY:
+        cls = get_backend_class(name)
+        if cls.capabilities.voice_cloning and cls.is_installed():
+            return name
+    return None
+
+
+def create_clone_backend(config: Config) -> TTSBackend | None:
+    name = resolve_clone_backend_name(config.tts.clone_backend)
+    return create_backend(config, name) if name else None
 
 
 def create_backend(config: Config, backend: str | None = None) -> TTSBackend:
