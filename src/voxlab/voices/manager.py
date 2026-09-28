@@ -12,7 +12,7 @@ import logging
 import re
 import shutil
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
@@ -161,21 +161,30 @@ class VoiceManager:
     def resolve_cast(
         self,
         speakers: Iterable[str],
-        cast: Mapping[str, str] | None = None,
+        cast: Mapping[str, str | Mapping[str, str]] | None = None,
         default: str = "default",
         strict: bool = False,
     ) -> dict[str, VoiceProfile]:
         """Assign a voice profile to every speaker.
 
         Priority: explicit ``cast`` entry (case-insensitive) > voice with the
-        speaker's name > ``default`` (or an error when ``strict``).
+        speaker's name > ``default`` (or an error when ``strict``). A cast entry
+        may be a voice name or ``{voice: ..., language: ...}``; its language
+        becomes the character's default language.
         """
         lookup = {k.lower(): v for k, v in (cast or {}).items()}
         assignment: dict[str, VoiceProfile] = {}
         for speaker in speakers:
             key = speaker.lower()
-            if key in lookup:
-                assignment[speaker] = self.get(lookup[key])
+            entry = lookup.get(key)
+            if isinstance(entry, Mapping):
+                voice_name = entry.get("voice") or (key if self.has(key) else default)
+                voice = self.get(voice_name)
+                if entry.get("language"):
+                    voice = replace(voice, language=str(entry["language"]).lower())
+                assignment[speaker] = voice
+            elif entry:
+                assignment[speaker] = self.get(entry)
             elif self.has(key):
                 assignment[speaker] = self.get(key)
             elif strict:

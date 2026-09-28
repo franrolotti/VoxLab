@@ -21,6 +21,9 @@ voice:
 
 # Speaker (as written in the dialogue) -> voice. Speakers whose lowercase name
 # matches a voice (OPERATOR -> operator) are assigned automatically.
+# Use a mapping to also give a character its own default language:
+#   CRONISTA: {voice: male, language: es-ar}
+#   JOHN: {language: en}              # keeps the automatic voice
 cast:
   NARRADOR: narrator
 

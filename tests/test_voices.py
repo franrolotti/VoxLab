@@ -119,3 +119,15 @@ def test_add_voice_rejects_non_audio(tmp_path):
 def test_invalid_profiles(tmp_path, data, message):
     with pytest.raises(VoiceError, match=message):
         parse_profile(data, "v", "user", base_dir=tmp_path)
+
+
+def test_cast_entry_can_set_character_language(manager):
+    cast = manager.resolve_cast(
+        ["CRONISTA", "OPERATOR", "GUEST"],
+        cast={"cronista": {"voice": "male", "language": "es-AR"}, "OPERATOR": {"language": "en"}},
+        default="female",
+    )
+    assert (cast["CRONISTA"].name, cast["CRONISTA"].language) == ("male", "es-ar")
+    assert (cast["OPERATOR"].name, cast["OPERATOR"].language) == ("operator", "en")
+    assert cast["GUEST"].language is None
+    assert manager.get("male").language is None  # the shared profile is untouched

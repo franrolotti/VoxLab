@@ -80,8 +80,9 @@ class Config:
     storage: StorageConfig = field(default_factory=StorageConfig)
     privacy: PrivacyConfig = field(default_factory=PrivacyConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
-    # Speaker name (as written in dialogues) -> voice name.
-    cast: dict[str, str] = field(default_factory=dict)
+    # Speaker name (as written in dialogues) -> voice name, or a mapping
+    # {voice: <name>, language: <code>} to also give the character a language.
+    cast: dict[str, Any] = field(default_factory=dict)
     base_dir: Path = field(default_factory=Path.cwd, repr=False)
     source: Path | None = field(default=None, repr=False)
 
@@ -126,7 +127,7 @@ def config_from_dict(data: dict[str, Any], base_dir: Path | None = None) -> Conf
     config = _build(Config, data, section="")
     if base_dir is not None:
         config.base_dir = base_dir
-    config.cast = {str(k): str(v) for k, v in config.cast.items()}
+    config.cast = {str(k): _cast_entry(str(k), v) for k, v in config.cast.items()}
     validate_config(config)
     return config
 
@@ -147,6 +148,19 @@ def validate_config(config: Config) -> None:
         raise ConfigError("audio.gap_ms and audio.padding_ms must be >= 0")
     if not config.tts.language:
         raise ConfigError("tts.language must not be empty")
+
+
+def _cast_entry(speaker: str, value: Any) -> str | dict[str, str]:
+    if isinstance(value, str) and value:
+        return value
+    if isinstance(value, dict):
+        unknown = set(value) - {"voice", "language"}
+        if unknown:
+            raise ConfigError(f"cast.{speaker}: unknown key(s) {', '.join(sorted(unknown))}")
+        if not value:
+            raise ConfigError(f"cast.{speaker}: set 'voice' and/or 'language'")
+        return {k: str(v) for k, v in value.items() if v}
+    raise ConfigError(f"cast.{speaker} must be a voice name or {{voice: ..., language: ...}}")
 
 
 def _find_config(path: str | Path | None) -> Path | None:

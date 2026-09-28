@@ -251,6 +251,23 @@ voices in this order:
 3. a voice with the same name as the speaker (`OPERATOR` → `operator`)
 4. `voice.default` (with a warning), or an error with `--strict` / `voice.strict: true`
 
+### Each character speaks its own language
+
+Give characters a default language once and they keep it for every line — no
+need to pass `--language` or tag lines:
+
+```yaml
+# config.yaml
+cast:
+  CRONISTA: {voice: male, language: es-ar}
+  JOHN: {voice: operator, language: en}
+  MADRILEÑA: {voice: female, language: es-es}
+```
+
+or in a voice profile (`language: es-ar` in `voices/<name>/voice.yaml`).
+The language of a line is chosen in this order: `lang=` on the line >
+character (cast) or voice language > `--language` > `tts.language`.
+
 Built-in voices: `default`, `narrator`, `operator`, `computer`, `female`,
 `male`, `deep`. Each one picks a suitable speaker for Spanish and English.
 

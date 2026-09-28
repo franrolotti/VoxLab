@@ -172,3 +172,10 @@ def test_benchmark_with_fake_backend():
     assert {r.language for r in report.results} == {"es"}
     assert report.rtf > 0
     assert report.to_dict()["results"][0]["rtf"] >= 0
+
+
+def test_each_character_speaks_its_own_language(config):
+    config.cast = {"ANA": {"voice": "female", "language": "es-ar"}, "JOHN": {"language": "en"}}
+    dialogue = parse_dialogue("[ANA]\nhola\n[JOHN]\nhello\n[BOB]\nhola\n[ANA|lang=es-es]\nvale\n")
+    jobs = make_pipeline(config).plan(dialogue, GenerateOptions(language="es")).jobs
+    assert [j.request.language for j in jobs] == ["es-ar", "en", "es", "es-es"]

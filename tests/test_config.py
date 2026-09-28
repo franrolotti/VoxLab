@@ -90,3 +90,26 @@ def test_top_level_must_be_mapping(tmp_path):
     path.write_text("- a\n- b\n")
     with pytest.raises(ConfigError, match="mapping"):
         load_config(path)
+
+
+def test_cast_accepts_voice_or_mapping():
+    config = config_from_dict(
+        {
+            "cast": {
+                "A": "male",
+                "B": {"voice": "female", "language": "es-ar"},
+                "C": {"language": "en"},
+            }
+        }
+    )
+    assert config.cast == {
+        "A": "male",
+        "B": {"voice": "female", "language": "es-ar"},
+        "C": {"language": "en"},
+    }
+
+
+@pytest.mark.parametrize("entry", [{"voice": "x", "accent": "ar"}, {}, 3, ""])
+def test_invalid_cast_entries(entry):
+    with pytest.raises(ConfigError, match=r"cast\.A"):
+        config_from_dict({"cast": {"A": entry}})
