@@ -155,3 +155,27 @@ def test_clean_asks_for_confirmation(project, capsys, monkeypatch):
     code, _ = run(capsys, "clean")
     assert code == 1
     assert (project / "models").exists()
+
+
+def test_voices_add_with_long_reference_text_and_file(project, capsys):
+    clip = project / "clip.wav"
+    clip.write_bytes(b"RIFF")
+    long_text = "Claro, claro, sí lo noté. " * 20
+    code, _ = run(
+        capsys, "voices", "add", "teo", "--reference", str(clip), "--reference-text", long_text
+    )
+    assert code == 0
+    assert (project / "voices" / "teo" / "reference.txt").read_text().strip() == long_text.strip()
+    (project / "t.txt").write_text("Desde archivo")
+    code, _ = run(
+        capsys,
+        "voices",
+        "add",
+        "ana",
+        "--reference",
+        str(clip),
+        "--reference-text",
+        str(project / "t.txt"),
+    )
+    assert code == 0
+    assert (project / "voices" / "ana" / "reference.txt").read_text().strip() == "Desde archivo"

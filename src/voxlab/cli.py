@@ -219,9 +219,7 @@ def cmd_voices(args: argparse.Namespace, config: Config) -> int:
 
 def cmd_voices_add(args: argparse.Namespace, config: Config) -> int:
     manager = VoiceManager(config.voices_dir)
-    reference_text = args.reference_text
-    if reference_text and Path(reference_text).is_file():
-        reference_text = Path(reference_text).read_text(encoding="utf-8")
+    reference_text = _text_or_file(args.reference_text)
     voice = manager.add(
         args.name,
         reference=args.reference,
@@ -399,6 +397,15 @@ def _parse_assignments(items: list[str]) -> dict[str, str]:
             raise VoxLabError(f"--voice expects SPEAKER=VOICE, got {item!r}")
         cast[speaker.strip()] = voice.strip()
     return cast
+
+
+def _text_or_file(value: str | None) -> str | None:
+    """Return the contents of ``value`` if it names a .txt file, else ``value`` itself."""
+    if value and value.lower().endswith(".txt") and "\n" not in value:
+        path = Path(value).expanduser()
+        if path.is_file():
+            return path.read_text(encoding="utf-8")
+    return value
 
 
 def _shorten(text: str, width: int) -> str:
