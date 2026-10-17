@@ -161,3 +161,59 @@ def test_kokoro_spanish_dialects(kokoro):
     assert kokoro.phonemize("x", "es-AR") == "ʃˈamo sesˈilja kˈaʃe"
     assert kokoro.supports_language("es-ar")
     assert kokoro.default_speaker("es-ar") == "ef_dora"
+
+
+# --- aHoTTS (Basque) backend without Docker -----------------------------------
+
+
+def test_ahotts_capabilities_and_speakers(tmp_path):
+    from voxlab.tts.ahotts import AhoTTSBackend
+
+    backend = AhoTTSBackend(model_dir=tmp_path)
+    assert backend.supports_language("eu") and not backend.supports_language("es")
+    assert [s.id for s in backend.speakers()] == ["antton", "maider"]
+    assert backend.default_speaker("eu") == "maider"
+    assert backend.voice_file("antton") == tmp_path / "ahotts" / "voices" / "antton" / "vits.onnx"
+    assert not backend.is_downloaded()
+
+
+def test_ahotts_text_encoding():
+    from voxlab.tts.ahotts import encode_text
+
+    assert encode_text("“Kaixo”… zer moduz? Ñ") == '"Kaixo"... zer moduz? Ñ'.encode("latin-1")
+    with pytest.raises(BackendError, match="cannot read"):
+        encode_text("Kaixo 👋")
+
+
+def test_ahotts_rejects_bad_requests(tmp_path):
+    from voxlab.tts.ahotts import AhoTTSBackend
+
+    backend = AhoTTSBackend(model_dir=tmp_path)
+    with pytest.raises(BackendError, match="only speak Basque"):
+        backend.synthesize(SynthesisRequest(text="hola", language="es"))
+    with pytest.raises(BackendError, match="Unknown aHoTTS speaker"):
+        backend.synthesize(SynthesisRequest(text="kaixo", language="eu", speaker="nobody"))
+
+
+# --- StyleTTS2 (emotional Basque) helpers ---------------------------------------
+
+
+def test_styletts2_phoneme_alignment():
+    from voxlab.tts.styletts2 import SYMBOLS, align_phonemes
+
+    raw = "k a j - S 'o | _ | tS i - k 'i - a k \ns` 'e rr | m o - D 'u s` \n"
+    phonemes = align_phonemes("Kaixo, txikiak!\nZer moduz?", raw)
+    assert phonemes == "kajʃO , CikIak ! ʂEr moðUʂ ?"
+    assert all(ch in SYMBOLS for ch in phonemes)
+
+
+def test_styletts2_capabilities(tmp_path):
+    from voxlab.tts.styletts2 import StyleTTS2Backend
+
+    backend = StyleTTS2Backend(model_dir=tmp_path)
+    assert backend.supports_language("eu") and not backend.supports_language("es")
+    assert {"emotion", "intensity", "speed"} <= backend.capabilities.native_params
+    assert [s.id for s in backend.speakers()] == ["antton", "maider"]
+    assert not backend.is_downloaded()
+    with pytest.raises(BackendError, match="Unknown emotion"):
+        backend.synthesize(SynthesisRequest("kaixo", "eu", params={"emotion": "angry"}))

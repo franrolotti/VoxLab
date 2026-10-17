@@ -12,31 +12,43 @@ narrator:
   description: Calm, slightly slower narration voice.
   speaker:
     kokoro: {es: em_alex, en: bm_george}
+    ahotts: antton
+    styletts2: antton
   params: {speed: 0.95, pitch: -1}
 
 operator:
   description: Human operator / pilot. Neutral male voice.
   speaker:
     kokoro: {es: em_alex, en: am_michael}
+    ahotts: antton
+    styletts2: antton
 
 computer:
   description: Ship computer. Flat, lowered female voice; pairs well with retro presets.
   speaker:
     kokoro: {es: ef_dora, en: af_nicole}
+    ahotts: maider
+    styletts2: maider
   params: {speed: 0.92, pitch: -3}
 
 female:
   description: Neutral female voice.
   speaker:
     kokoro: {es: ef_dora, en: af_heart}
+    ahotts: maider
+    styletts2: maider
 
 male:
   description: Neutral male voice.
   speaker:
     kokoro: {es: em_alex, en: am_adam}
+    ahotts: antton
+    styletts2: antton
 
 deep:
   description: Deep, heavy male voice.
   speaker:
     kokoro: {es: em_santa, en: am_onyx}
+    ahotts: antton
+    styletts2: antton
   params: {pitch: -2, speed: 0.95}

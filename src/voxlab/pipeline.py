@@ -8,8 +8,9 @@ The pipeline is split in two phases:
 * :meth:`Pipeline.render` runs the TTS backend and the audio chain.
 
 Voices with a reference clip are routed to the clone backend
-(``tts.clone_backend``) when the main backend cannot clone, so one dialogue can
-mix built-in and cloned voices.
+(``tts.clone_backend``) when the main backend cannot clone, and lines in a
+language the main backend does not speak (e.g. Basque) go to an installed
+backend that does, so one dialogue can mix built-in, cloned and Basque voices.
 """
 
 from __future__ import annotations
@@ -30,7 +31,11 @@ from voxlab.config import Config
 from voxlab.dialogue.models import Dialogue, DialogueLine
 from voxlab.errors import DialogueError, VoiceError
 from voxlab.tts.base import SynthesisRequest, TTSBackend
-from voxlab.tts.factory import create_backend, create_clone_backend
+from voxlab.tts.factory import (
+    create_backend,
+    create_clone_backend,
+    resolve_language_backend_name,
+)
 from voxlab.voices.manager import VoiceManager, VoiceProfile
 
 log = logging.getLogger(__name__)
@@ -94,11 +99,14 @@ class Pipeline:
         voices: VoiceManager | None = None,
         presets: PresetLibrary | None = None,
         clone_backend: TTSBackend | None = None,
+        language_backends: list[TTSBackend] | None = None,
     ) -> None:
         self.config = config
         self._backend = backend
         self._clone_backend = clone_backend
         self._clone_resolved = clone_backend is not None
+        # Backends for languages the main one lacks, by name (created on demand).
+        self._language_backends = {b.name: b for b in language_backends or []}
         self.voices = voices or VoiceManager(config.voices_dir)
         self.presets = presets or PresetLibrary(config.preset_dirs)
 
@@ -115,13 +123,24 @@ class Pipeline:
             self._clone_resolved = True
         return self._clone_backend
 
-    def backend_for(self, voice: VoiceProfile) -> TTSBackend:
-        """Main backend, or the clone backend for reference voices it cannot handle."""
+    def backend_for(self, voice: VoiceProfile, language: str) -> TTSBackend:
+        """Main backend, the clone backend for reference voices it cannot handle, or
+        another backend for a language it does not speak."""
         if voice.uses_cloning and not self.backend.capabilities.voice_cloning:
             clone = self.clone_backend
             if clone is not None:
                 return clone
-        return self.backend
+        if self.backend.supports_language(language):
+            return self.backend
+        for backend in self._language_backends.values():
+            if backend.supports_language(language):
+                return backend
+        name = resolve_language_backend_name(language)
+        if name is None:
+            return self.backend  # reported as an unsupported language by the caller
+        backend = create_backend(self.config, name)
+        self._language_backends[name] = backend
+        return backend
 
     # --- planning -----------------------------------------------------------
 
@@ -151,12 +170,11 @@ class Pipeline:
         options: GenerateOptions,
         warned: set[str],
     ) -> LineJob:
-        backend = self.backend_for(voice)
-        caps = backend.capabilities
         where = f"line {line.line_number} [{line.speaker}]"
         params: dict[str, Any] = {**voice.params, **line.params}
-
         language = self._language(params, voice, options)
+        backend = self.backend_for(voice, language)
+        caps = backend.capabilities
         if not backend.supports_language(language):
             raise DialogueError(
                 f"{where}: backend {backend.name!r} does not support language {language!r} "

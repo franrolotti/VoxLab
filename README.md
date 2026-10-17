@@ -43,6 +43,7 @@ aesthetics are **audio presets**, not a limitation of the engine.
 7. [Dialogue format](#dialogue-format)
 8. [Voices](#voices)
 9. [Voice cloning](#voice-cloning)
+   - [Basque (euskara)](#basque-euskara)
 10. [Presets](#presets)
 11. [Arcade 80s](#arcade-80s)
 12. [Offline use and privacy](#offline-use-and-privacy)
@@ -76,8 +77,8 @@ It is deliberately not a giant wrapper around every TTS model.
 
 - 🗣️ Multi-character dialogues from plain text files
 - 🎭 50+ built-in voices, voice **blending** and custom voice profiles
-- 🌍 Spanish (Spain, Latin America, Río de la Plata), English (US/UK), French, Italian, Portuguese and Hindi
-- 🎛️ Six presets: `clean`, `radio`, `arcade_80s`, `crt_terminal`, `cyberpunk`, `sci_fi` — and your own
+- 🌍 Spanish (Spain, Latin America, Río de la Plata), English (US/UK), French, Italian, Portuguese and Hindi — plus **Basque** (HiTZ voices, via Docker)
+- 🎛️ Seven presets: `clean`, `radio`, `arcade_80s`, `crt_terminal`, `cyberpunk`, `sci_fi`, `fantasy_rpg` — and your own
 - 🎚️ Per-line parameters: speed, pitch, volume, pause, language
 - 💾 WAV export, 48 kHz / 24-bit by default (44.1 kHz and 16-bit available)
 - 🔒 100 % local inference once the model is downloaded; no cloud APIs
@@ -106,7 +107,9 @@ src/voxlab/
 │   ├── base.py       # TTSBackend interface + capabilities
 │   ├── factory.py    # backend registry (`tts.backend`, `tts.clone_backend`)
 │   ├── kokoro.py     # Kokoro-82M on ONNX Runtime (default)
-│   └── qwen.py       # Qwen3-TTS 0.6B on MLX (optional, voice cloning)
+│   ├── qwen.py       # Qwen3-TTS 0.6B on MLX (optional, voice cloning)
+│   ├── ahotts.py     # HiTZ Basque voices (aHoTTS in Docker, optional)
+│   └── styletts2.py  # HiTZ emotional Basque voices (StyleTTS2, optional)
 └── audio/
     ├── effects.py    # effect functions (filters, compressor, bitcrush, reverb…)
     ├── presets.py    # YAML presets → effect chains
@@ -119,7 +122,9 @@ The pipeline talks only to the abstract `TTSBackend`. Each backend declares its
 and VoxLab adapts: unsupported parameters are emulated in post-processing
 (`pitch`, `volume`, `pause`) or ignored with a warning. Voices with a
 reference clip are routed to the clone backend when the main one cannot clone,
-so a single dialogue can mix built-in and cloned voices.
+and lines in a language the main backend lacks (e.g. `eu`) go to an installed
+backend that speaks it, so a single dialogue can mix built-in, cloned and
+Basque voices.
 
 **Adding a backend** (e.g. Chatterbox, F5-TTS, XTTS, CosyVoice) means writing
 one `TTSBackend` subclass and one registry entry in `tts/factory.py`. Dialogue,
@@ -355,6 +360,75 @@ references (8–12 s) are faster, since the clip is part of every prompt.
 
 Only clone voices you have permission to use.
 
+## Basque (euskara)
+
+Lines in Basque (`lang=eu`) are spoken by the two studio voices of
+[HiTZ / Aholab](https://github.com/hitz-zentroa/aHoTTS) (UPV/EHU):
+**`antton`** (male) and **`maider`** (female), VITS models with HiTZ's Basque
+text front end. That engine only exists as a Linux x86-64 binary, so VoxLab
+runs it in a small throwaway container (no network, files mounted read-only).
+Kokoro and Qwen3-TTS do not speak Basque.
+
+**Requirements:** Docker running (Docker Desktop or colima). Nothing else to
+install. The engine and voices (~245 MB) are downloaded to `~/.cache/voxlab/ahotts`
+on first use, checksum-verified; Docker keeps a ~120 MB Debian image.
+
+```bash
+voxlab models --download --backend ahotts     # optional: fetch everything now
+```
+
+```text
+[AITONA|lang=eu]
+Kaixo, txikiak. Etorri hona, sutondora.
+```
+
+Map characters to the voices in a profile and every line of theirs is Basque:
+
+```yaml
+# voices/aitona/voice.yaml
+speaker: {ahotts: antton}
+language: eu
+params: {pitch: -2.5, pause: 550}   # older, slower
+```
+
+Built-in voices also work in Basque: `female` / `computer` → maider,
+`male` / `narrator` / `operator` / `deep` → antton.
+
+Tips: write numbers and acronyms as words; the engine reads ISO-8859-1, so
+emoji and other non-Latin characters are rejected (typographic quotes, dashes
+and `…` are converted). There is no `speed` control; `pitch` (varispeed) makes
+a voice younger and quicker (`+2…+3`) or older and slower (`-2…-3`). Speech is
+sampled, so the same line sounds slightly different on every run.
+Speed on an Apple M4: ~2× real time under x86 emulation (~2 s per line).
+
+### Emotional Basque voices
+
+For livelier characters install the `emotion` extra. VoxLab then uses
+[HiTZ/StyleTTS2-eu_emo](https://huggingface.co/HiTZ/StyleTTS2-eu_emo)
+(Apache-2.0): the same Antton and Maider, with **neutral, happy and sad**
+delivery, running on PyTorch (Apple GPU or CPU). Basque lines go to it
+automatically when it is installed; Docker is still needed for the phonemiser.
+
+```bash
+pip install -e ".[emotion]"                    # PyTorch etc., ~0.65 GB
+voxlab models --download --backend styletts2   # 2.1 GB download, kept as ~0.3 GB
+```
+
+```text
+[MUTILA|emotion=poz|intensity=0.85]
+Basajaun, lagunduko didazu?
+```
+
+| Parameter | Values | Meaning |
+|---|---|---|
+| `emotion` | `neu` (neutral), `poz` (happy), `tri` (sad) | delivery style (English/Spanish names also accepted) |
+| `intensity` | 0–1 (default 0.8) | how strongly the emotion comes through |
+| `speed` | 0.5–2.0 | speaking rate (so `pitch` no longer changes tempo) |
+| `seed` | integer | another take of the same line |
+
+Put them in a voice profile (`params: {emotion: poz, intensity: 0.6}`) or on a
+line. Speed on an Apple M4: ~1.5 s per line after a ~6 s model load.
+
 ## Presets
 
 Presets are YAML effect chains in [`presets/`](presets/). They run on the
@@ -368,8 +442,9 @@ final mix at the output sample rate.
 | `crt_terminal` | Terminal speaker, partial bit reduction, faint 15.7 kHz CRT whine. |
 | `cyberpunk` | Grit, chorus, heavy compression, slap delay and a neon-city space. |
 | `sci_fi` | Ring-modulated starship computer with doubling and a large hall. |
+| `fantasy_rpg` | Warm, gentle adventure-game voice: soft 16-bit grain, rounded highs, shimmer, glade reverb. |
 
-All six were checked with automatic speech recognition: every line of the
+The first six were checked with automatic speech recognition: every line of the
 example dialogue stays intelligible (priority: **intelligible > aesthetic >
 extreme effects**).
 
@@ -460,6 +535,8 @@ your machine.
 | **Total** | **~0.6 GB** (budget: 5 GB) |
 | Optional: `[clone]` packages (MLX, mlx-audio, transformers) | ~260 MB |
 | Optional: Qwen3-TTS 0.6B bf16 model | ~2.4 GB |
+| Optional: Basque engine + 2 voices (+ ~120 MB Docker image) | ~245 MB |
+| Optional: emotional Basque voices (StyleTTS2 fp16 weights) + `[emotion]` packages | ~0.3 GB + ~0.65 GB |
 | **Total with cloning** | **~3.3 GB** |
 
 With `variant: q8f16` the model shrinks to ~115 MB (slower on CPU). Output WAVs are ~8.6 MB
@@ -480,7 +557,7 @@ folder, the current directory or anything that looks like a project.
   runtime for Linux/Windows is on the roadmap. Cloning has no speed control.
 - **Spanish voices:** three native speakers (`ef_dora`, `em_alex`,
   `em_santa`); blending and pitch give more variety. English has ~20 voices.
-- **Languages:** es (es-es, es-419, es-ar), en (US/UK), fr, it, pt-BR, hi. Japanese and Chinese
+- **Languages:** es (es-es, es-419, es-ar), en (US/UK), fr, it, pt-BR, hi, and eu (Basque, needs Docker). Japanese and Chinese
   voices exist in the model but need a different phonemiser; not supported yet.
 - **No emotion/style control**: Kokoro reads text neutrally. Punctuation
   (`!`, `?`, `…`) still shapes intonation.
@@ -499,6 +576,8 @@ folder, the current directory or anything that looks like a project.
 | phonemizer, espeak-ng (phonemisation) | **GPL-3.0** | ✅ for use; see note |
 | Qwen3-TTS 0.6B Base weights (optional) | Apache-2.0 | ✅ |
 | mlx, mlx-audio (optional) | MIT | ✅ |
+| aHoTTS engine, HiTZ Basque voices (optional) | Apache-2.0; voice data CC BY 4.0 | ✅ credit *HiTZ / Aholab (UPV/EHU), ILENIA project* |
+| HiTZ StyleTTS2-eu_emo (optional), StyleTTS2_basque code | Apache-2.0, MIT | ✅ credit *HiTZ / Aholab (UPV/EHU)* |
 
 Audio you generate is yours to use, including commercially. The GPL-3.0
 components only matter if you **redistribute VoxLab bundled** into a single

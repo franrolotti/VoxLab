@@ -33,6 +33,15 @@ dependencies = [
 clone = [
     "mlx-audio>=0.5.7,<0.6; sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
+# Emotional Basque voices (HiTZ StyleTTS2) on PyTorch; ~0.4 GB of weights. Needs Docker.
+emotion = [
+    "torch>=2.2",
+    "transformers>=4.40",
+    "einops>=0.7",
+    "einops-exts>=0.0.4",
+    "munch>=4.0",
+    "tqdm>=4.0",
+]
 dev = ["pytest>=8.0", "ruff>=0.6"]
 
 [project.scripts]

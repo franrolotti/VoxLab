@@ -7,6 +7,7 @@ from voxlab.benchmark import run_benchmark
 from voxlab.dialogue.parser import parse_dialogue
 from voxlab.errors import DialogueError, PresetError, UnknownSpeakerError, VoiceError
 from voxlab.pipeline import GenerateOptions, Pipeline, shift_pitch
+from voxlab.tts.base import BackendCapabilities
 
 
 def make_pipeline(config, backend=None):
@@ -203,3 +204,38 @@ def test_clone_backend_auto_resolution(config, monkeypatch):
     assert factory.resolve_clone_backend_name("auto") is None
     monkeypatch.setattr("voxlab.tts.qwen.QwenBackend.is_installed", classmethod(lambda c: True))
     assert factory.resolve_clone_backend_name("auto") == "qwen"
+
+
+class BasqueBackend(FakeBackend):
+    name = "fake_eu"
+    capabilities = BackendCapabilities(languages=("eu",))
+
+
+def test_lines_in_other_languages_are_routed_by_language(config):
+    main, basque = FakeBackend(), BasqueBackend()
+    pipeline = Pipeline(config, backend=main, language_backends=[basque])
+    dialogue = parse_dialogue("[OPERATOR|lang=eu]\nkaixo\n[OPERATOR]\nhola\n")
+    jobs = pipeline.plan(dialogue).jobs
+    assert [j.backend.name for j in jobs] == ["fake_eu", "fake"]
+    pipeline.render(pipeline.plan(dialogue), 48000)
+    assert basque.loaded and len(basque.requests) == 1
+
+
+def test_language_routing_uses_installed_backends(config, monkeypatch):
+    from voxlab.tts import factory
+
+    styletts2 = "voxlab.tts.styletts2.StyleTTS2Backend.is_installed"
+    monkeypatch.setattr(styletts2, classmethod(lambda c: True))
+    monkeypatch.setattr("voxlab.tts.ahotts.AhoTTSBackend.is_installed", classmethod(lambda c: True))
+    assert factory.resolve_language_backend_name("eu") == "styletts2"  # emotional voices first
+    monkeypatch.setattr(styletts2, classmethod(lambda c: False))
+    assert factory.resolve_language_backend_name("eu") == "ahotts"
+    assert factory.resolve_language_backend_name("es") == "kokoro"
+    job = make_pipeline(config).plan(parse_dialogue("[FEMALE|lang=eu]\nkaixo\n")).jobs[0]
+    assert (job.backend.name, job.request.speaker) == ("ahotts", "maider")
+    monkeypatch.setattr(
+        "voxlab.tts.ahotts.AhoTTSBackend.is_installed", classmethod(lambda c: False)
+    )
+    assert factory.resolve_language_backend_name("eu") is None
+    with pytest.raises(DialogueError, match="does not support language 'eu'"):
+        make_pipeline(config).plan(parse_dialogue("[A|lang=eu]\nkaixo\n"))

@@ -17,6 +17,9 @@ from voxlab.tts.base import TTSBackend
 _REGISTRY: dict[str, str | type[TTSBackend]] = {
     "kokoro": "voxlab.tts.kokoro:KokoroBackend",
     "qwen": "voxlab.tts.qwen:QwenBackend",
+    # Basque: the emotional StyleTTS2 voices win over aHoTTS when both are installed.
+    "styletts2": "voxlab.tts.styletts2:StyleTTS2Backend",
+    "ahotts": "voxlab.tts.ahotts:AhoTTSBackend",
 }
 
 # Preference order for ``tts.backend: auto``.
@@ -67,6 +70,19 @@ def resolve_clone_backend_name(requested: str) -> str | None:
     for name in _REGISTRY:
         cls = get_backend_class(name)
         if cls.capabilities.voice_cloning and cls.is_installed():
+            return name
+    return None
+
+
+def resolve_language_backend_name(language: str) -> str | None:
+    """First installed, non-cloning backend that speaks ``language`` (e.g. ahotts for eu)."""
+    for name in [*AUTO_ORDER, *(n for n in _REGISTRY if n not in AUTO_ORDER)]:
+        cls = get_backend_class(name)
+        if (
+            not cls.capabilities.voice_cloning
+            and cls.supports_language(language)
+            and cls.is_installed()
+        ):
             return name
     return None
 

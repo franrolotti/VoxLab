@@ -1,0 +1,41 @@
+name: fantasy_rpg
+description: >
+  Warm, gentle voice for an adventure / fantasy RPG: a soft 16-bit console
+  grain, rounded highs, a touch of shimmer and a forest-glade reverb.
+chain:
+  - effect: highpass
+    cutoff_hz: 90
+    order: 2
+  - effect: peaking_eq       # warmth
+    freq_hz: 250
+    gain_db: 2.5
+    q: 0.8
+  - effect: peaking_eq       # tame harshness so it stays tender
+    freq_hz: 4000
+    gain_db: -2.5
+    q: 1.0
+  - effect: compressor
+    threshold_db: -22
+    ratio: 2.5
+    attack_ms: 8
+    release_ms: 120
+    makeup_db: 2
+  - effect: bitcrush         # cartridge sample grain, half wet to stay soft
+    bits: 12
+    downsample_hz: 16000
+    mix: 0.5
+  - effect: lowpass
+    cutoff_hz: 7000
+    order: 2
+  - effect: chorus           # a little magic shimmer
+    rate_hz: 0.5
+    depth_ms: 1.5
+    delay_ms: 18
+    mix: 0.15
+  - effect: reverb           # open glade, not a cathedral
+    room_size: 0.55
+    damping: 0.5
+    mix: 0.18
+    predelay_ms: 20
+  - effect: normalize
+    peak_db: -1.0

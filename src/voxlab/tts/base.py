@@ -116,11 +116,12 @@ class TTSBackend(ABC):
         """Speaker used when a voice profile does not name one."""
         return None
 
-    def supports_language(self, language: str) -> bool:
+    @classmethod
+    def supports_language(cls, language: str) -> bool:
         language = language.lower()
         return any(
             language == code or language.split("-")[0] == code
-            for code in self.capabilities.languages
+            for code in cls.capabilities.languages
         )
 
     def runtime_info(self) -> dict[str, Any]:
